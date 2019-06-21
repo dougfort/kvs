@@ -1,0 +1,1 @@
+{"rustc":11662075050264400882,"features":"[]","target":5168275039779215807,"profile":8248545651247322450,"path":5138241736947912804,"deps":[["kvs v0.1.0 (/home/dougfort/rust/kvs)","kvs",225701507961480478]],"local":[{"MtimeBased":[[1560709433,451830882],".fingerprint/kvs-c620a5a9c98f2d12/dep-test-bin-kvs-c620a5a9c98f2d12"]}],"rustflags":[],"metadata":17230497664276535558}
