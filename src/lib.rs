@@ -1,30 +1,29 @@
 #![deny(missing_docs)]
 
 //! # kvs
-//! 
+//!
 //! `kvs` is a key-value store
 
 use std::collections::HashMap;
 
 /// Key-Value Store
-pub struct KvStore{
-    store: HashMap<String, String>
+#[derive(Default)]
+pub struct KvStore {
+    store: HashMap<String, String>,
 }
 
-
-impl KvStore  {
-
+impl KvStore {
     /// create a KvStore
     pub fn new() -> KvStore {
-        KvStore{
-            store: HashMap::new()
+        KvStore {
+            store: HashMap::new(),
         }
     }
 
     /// retrieve a value from the store
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use kvs::KvStore;
     /// let key = "key1".to_string();
@@ -36,14 +35,14 @@ impl KvStore  {
     pub fn get(&self, key: String) -> Option<String> {
         match self.store.get(&key) {
             Some(v) => Some(v.to_owned()),
-            _ => None
+            _ => None,
         }
     }
 
     /// store a value in the store
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use kvs::KvStore;
     /// let key = "key1".to_string();
@@ -57,9 +56,9 @@ impl KvStore  {
     }
 
     /// remove a value from the store
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use kvs::KvStore;
     /// let key = "key1".to_string();
@@ -74,4 +73,3 @@ impl KvStore  {
         self.store.remove(&key);
     }
 }
-
