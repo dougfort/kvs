@@ -1,9 +1,10 @@
 use clap::{App, Arg};
+use failure::Error;
 use kvs::KvStore;
 use std::env;
 use std::process;
 
-fn main() {
+fn main() -> Result<(), Error> {
     let matches = App::new(env::var("CARGO_PKG_NAME").unwrap())
         .version(&*env::var("CARGO_PKG_VERSION").unwrap())
         .author(&*env::var("CARGO_PKG_AUTHORS").unwrap())
@@ -21,28 +22,35 @@ fn main() {
         )
         .get_matches();
 
-    let action = matches.value_of("action").unwrap();
-    let mut store = KvStore::new();
+    let cwd = env::current_dir()?;
+    let mut store = KvStore::open(&cwd)?;
+
+    let action = matches.value_of("action").unwrap_or_default();
     match action {
         "get" => {
-            let key = matches.value_of("key").unwrap_or("");
-            let result = store.get(key.to_string());
-            println!("action = {}, result = {:?}", action, result);
+            let key = matches.value_of("key").unwrap_or_default();
+            let get_result = store.get(key.to_owned())?;
+            if get_result.is_none() {
+                println!("Key not found");
+            };
         }
         "set" => {
             let key = matches.value_of("key").unwrap_or("");
             let value = matches.value_of("value").unwrap_or("");
-            store.set(key.to_string(), value.to_string());
-            println!("action = {}", action);
+            store.set(key.to_string(), value.to_string())?;
         }
         "rm" => {
             let key = matches.value_of("rm").unwrap_or("");
-            store.remove(key.to_string());
-            println!("action = {}", action);
+            let rm_result = store.remove(key.to_string())?;
+            if rm_result.is_none() {
+                println!("Key not found");
+            };
         }
         _ => {
             eprintln!("unknown action: '{}'", action);
             process::exit(2);
         }
     }
+
+    Ok(())
 }
