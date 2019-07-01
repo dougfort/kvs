@@ -29,10 +29,10 @@ fn main() -> Result<(), Error> {
     match action {
         "get" => {
             let key = matches.value_of("key").unwrap_or_default();
-            let get_result = store.get(key.to_owned())?;
-            if get_result.is_none() {
-                println!("Key not found");
-            };
+            match store.get(key.to_owned())? {
+                None => println!("Key not found"),
+                Some(value) => println!("{}", value),
+            }
         }
         "set" => {
             let key = matches.value_of("key").unwrap_or("");
