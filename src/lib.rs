@@ -3,9 +3,9 @@
 //! # kvs
 //!
 //! `kvs` is a key-value store
-//! 
+//!
 
-use failure::{Error, format_err};
+use failure::{format_err, Error};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -21,6 +21,7 @@ pub type Result<T> = result::Result<T, Error>;
 /// Key-Value Store
 pub struct KvStore {
     file: File,
+    file_pointer_map: HashMap<String, u64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -41,12 +42,27 @@ impl KvStore {
     /// create a KvStore
     pub fn open(dir_path: &Path) -> Result<KvStore> {
         let file_path = dir_path.join("kvs.log");
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(file_path)?;
-        let store = KvStore { file };
+        let mut store = KvStore {
+            file: OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(file_path)?,
+            file_pointer_map: HashMap::new(),
+        };
+
+        store.file.seek(SeekFrom::Start(0))?;
+        let reader = BufReader::new(&store.file);
+        let mut offset: u64 = 0;
+
+        for line_result in reader.lines() {
+            let line = line_result?;
+            let cmd: Command = serde_json::from_str(&line)?;
+            store.file_pointer_map.insert(cmd.key, offset);
+            offset += line.len() as u64;
+            offset += 1;
+        }
+
         Ok(store)
     }
 
@@ -67,20 +83,7 @@ impl KvStore {
     /// assert_eq!(Some(value.to_owned()), store.get(key.to_owned()));
     /// ```
     pub fn get(&mut self, key: String) -> Result<Option<String>> {
-        let mut file_pointer_map: HashMap<String, u64> = HashMap::new();
-        self.file.seek(SeekFrom::Start(0))?;
-        let reader = BufReader::new(&self.file);
-        let mut offset: u64 = 0;
-
-        for line_result in reader.lines() {
-            let line = line_result?;
-            let cmd: Command = serde_json::from_str(&line)?;
-            file_pointer_map.insert(cmd.key, offset);
-            offset += line.len() as u64;
-            offset += 1;
-        }
-
-        match file_pointer_map.get(&key) {
+        match self.file_pointer_map.get(&key) {
             Some(file_pointer) => {
                 self.file.seek(SeekFrom::Start(*file_pointer))?;
                 let mut reader = BufReader::new(&self.file);
@@ -89,8 +92,8 @@ impl KvStore {
                 let cmd: Command = serde_json::from_str(&line)?;
                 match cmd.action {
                     Action::Set => Ok(Some(cmd.value)),
-                    _ => Ok(None)
-                }                
+                    _ => Ok(None),
+                }
             }
             None => Ok(None),
         }
@@ -113,12 +116,15 @@ impl KvStore {
     /// assert_eq!(Some(value.to_owned()), store.get(key.to_owned()));
     /// ```
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
-        let command = Command {
+        let cmd = Command {
             action: Action::Set,
             key,
             value,
         };
-        self.append_command(&command)
+        let offset = self.append_command(&cmd)?;
+        self.file_pointer_map.insert(cmd.key, offset);
+
+        Ok(())
     }
 
     /// remove a value from the store
@@ -140,20 +146,21 @@ impl KvStore {
         if get_result.is_none() {
             return Err(format_err!("Key not found"));
         };
-        let command = Command {
+        let cmd = Command {
             action: Action::Remove,
             key,
             value: String::new(),
         };
-        self.append_command(&command)?;
+        let offset = self.append_command(&cmd)?;
+        self.file_pointer_map.insert(cmd.key, offset);
         Ok(Some(()))
     }
 
-    fn append_command(&mut self, cmd: &Command) -> Result<()> {
+    fn append_command(&mut self, cmd: &Command) -> Result<u64> {
         let s = serde_json::to_string(cmd)?;
-        self.file.seek(SeekFrom::End(0))?;
+        let offset = self.file.seek(SeekFrom::End(0))?;
         self.file.write_all(s.to_string().as_bytes())?;
         self.file.write_all("\n".as_bytes())?;
-        Ok(())
+        Ok(offset)
     }
 }
