@@ -1,5 +1,3 @@
-#![deny(missing_docs)]
-
 //! # kvs
 //!
 //! `kvs` is a key-value store
