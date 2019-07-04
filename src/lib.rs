@@ -3,8 +3,9 @@
 //! # kvs
 //!
 //! `kvs` is a key-value store
+//! 
 
-use failure::{Error};
+use failure::{Error, format_err};
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -86,7 +87,10 @@ impl KvStore {
                 let mut line = String::new();
                 reader.read_line(&mut line)?;
                 let cmd: Command = serde_json::from_str(&line)?;
-                Ok(Some(cmd.value))
+                match cmd.action {
+                    Action::Set => Ok(Some(cmd.value)),
+                    _ => Ok(None)
+                }                
             }
             None => Ok(None),
         }
@@ -134,7 +138,7 @@ impl KvStore {
     pub fn remove(&mut self, key: String) -> Result<Option<()>> {
         let get_result = self.get(key.to_owned())?;
         if get_result.is_none() {
-            return Ok(None);
+            return Err(format_err!("Key not found"));
         };
         let command = Command {
             action: Action::Remove,

@@ -25,31 +25,43 @@ fn main() -> Result<(), Error> {
     let cwd = env::current_dir()?;
     let mut store = KvStore::open(&cwd)?;
 
-    let action = matches.value_of("action").unwrap_or_default();
-    match action {
-        "get" => {
-            let key = matches.value_of("key").unwrap_or_default();
-            match store.get(key.to_owned())? {
-                None => println!("Key not found"),
-                Some(value) => println!("{}", value),
+    if let Some(action) = matches.value_of("action") {
+        if let Some(key) = matches.value_of("key") {
+            match action {
+                "get" => {
+                    if let Some(_) = matches.value_of("value") {
+                        eprintln!("too many arguments");
+                        process::exit(2);
+                    } else {
+                        match store.get(key.to_owned())? {
+                            None => println!("Key not found"),
+                            Some(value) => println!("{}", value),
+                        }
+                    }
+                }
+                "set" => {
+                    if let Some(value) = matches.value_of("value") {
+                        store.set(key.to_string(), value.to_string())?;
+                    } else {
+                        eprintln!("you must specify a value");
+                        process::exit(2);
+                    }
+                }
+                "rm" => {
+                    store.remove(key.to_string())?;
+                }
+                _ => {
+                    eprintln!("unknown action: '{}'", action);
+                    process::exit(2);
+                }
             }
-        }
-        "set" => {
-            let key = matches.value_of("key").unwrap_or("");
-            let value = matches.value_of("value").unwrap_or("");
-            store.set(key.to_string(), value.to_string())?;
-        }
-        "rm" => {
-            let key = matches.value_of("rm").unwrap_or("");
-            let rm_result = store.remove(key.to_string())?;
-            if rm_result.is_none() {
-                println!("Key not found");
-            };
-        }
-        _ => {
-            eprintln!("unknown action: '{}'", action);
+        } else {
+            eprintln!("you must specify a key");
             process::exit(2);
         }
+    } else {
+        eprintln!("you must specify an action");
+        process::exit(2);
     }
 
     Ok(())
