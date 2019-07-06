@@ -1,8 +1,9 @@
 use clap::{App, Arg};
 use failure::Error;
 use std::env;
-use slog::{Drain, Logger, o, info};
+use slog::{Drain, Logger, o, info, debug};
 use slog_async::Async;
+use std::net::{TcpListener, TcpStream};
 
 fn main() -> Result<(), Error> {
     let drain = slog_json::Json::new(std::io::stdout()).add_default_keys()
@@ -34,5 +35,18 @@ fn main() -> Result<(), Error> {
     let engine = matches.value_of("engine").unwrap_or_default();
     info!(root_logger, "addr = {}; engine = {}", addr, engine);
 
+    let listener = TcpListener::bind(addr)?;
+    // accept connections and process them serially
+    for stream in listener.incoming() {
+        let stream = stream?;
+        let peer_addr = stream.peer_addr()?;
+        debug!(root_logger, "connection"; "addr" => peer_addr);
+        handle_client(stream);
+    }
+
     Ok(())
+}
+
+fn handle_client(_stream: TcpStream) {
+    // ...
 }
