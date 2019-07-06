@@ -1,6 +1,5 @@
 use clap::{App, Arg};
 use failure::Error;
-use kvs::KvStore;
 use std::env;
 use std::process;
 
@@ -22,33 +21,27 @@ fn main() -> Result<(), Error> {
         )
         .get_matches();
 
-    let cwd = env::current_dir()?;
-    let mut store = KvStore::open(&cwd)?;
-
     if let Some(action) = matches.value_of("action") {
         if let Some(key) = matches.value_of("key") {
             match action {
                 "get" => {
-                    if matches.value_of("value").is_some() {
+                    if let Some(_) = matches.value_of("value") {
                         eprintln!("too many arguments");
                         process::exit(2);
                     } else {
-                        match store.get(key.to_owned())? {
-                            None => println!("Key not found"),
-                            Some(value) => println!("{}", value),
-                        }
+                        println!("get {}", key);
                     }
                 }
                 "set" => {
                     if let Some(value) = matches.value_of("value") {
-                        store.set(key.to_string(), value.to_string())?;
+                        println!("set {} {}", key, value);
                     } else {
                         eprintln!("you must specify a value");
                         process::exit(2);
                     }
                 }
                 "rm" => {
-                    store.remove(key.to_string())?;
+                    println!("rm {}", key);
                 }
                 _ => {
                     eprintln!("unknown action: '{}'", action);

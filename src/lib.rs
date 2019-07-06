@@ -22,6 +22,12 @@ pub struct KvStore {
     file_pointer_map: HashMap<String, u64>,
 }
 
+pub trait KvsEngine {
+    fn set(&mut self, key: String, value: String) -> Result<()>;
+    fn get(&mut self, key: String) -> Result<Option<String>>;
+    fn remove(&mut self, key: String) -> Result<Option<()>>;
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 enum Action {
     None,
