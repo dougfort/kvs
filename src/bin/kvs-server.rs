@@ -1,14 +1,16 @@
 use clap::{App, Arg};
 use failure::Error;
-use std::env;
-use slog::{Drain, Logger, o, info, debug};
+use kvs::{read_message, write_message, Action, Message};
+use slog::{debug, error, info, o, Drain, Logger};
 use slog_async::Async;
+use std::env;
 use std::net::{TcpListener, TcpStream};
 
 fn main() -> Result<(), Error> {
-    let drain = slog_json::Json::new(std::io::stdout()).add_default_keys()
-                                                     .build()
-                                                     .fuse();
+    let drain = slog_json::Json::new(std::io::stdout())
+        .add_default_keys()
+        .build()
+        .fuse();
 
     let async_drain = Async::new(drain).build().fuse();
     let server_info = format!("v{}", env!("CARGO_PKG_VERSION"));
@@ -41,12 +43,28 @@ fn main() -> Result<(), Error> {
         let stream = stream?;
         let peer_addr = stream.peer_addr()?;
         debug!(root_logger, "connection"; "addr" => peer_addr);
-        handle_client(stream);
+        handle_client(stream, root_logger.clone());
     }
 
     Ok(())
 }
 
-fn handle_client(_stream: TcpStream) {
-    // ...
+fn handle_client(mut stream: TcpStream, logger: Logger) {
+    match read_message(&mut stream) {
+        Ok(msg) => {
+            let reply_message = if let Message::Command(cmd) = msg {
+                match cmd.action {
+                    Action::Get => Message::Error("not implemented".to_string()),
+                    Action::Set => Message::Error("not implemented".to_string()),
+                    Action::Remove => Message::Error("not implemented".to_string()),
+                    _ => Message::Error("invalid Action".to_string()),
+                }
+            } else {
+                Message::Error("Invalid message".to_string())
+            };
+            write_message(&mut stream, &reply_message).expect("write_message failed");
+        }
+        Err(err) => error!(logger, "read_message: {}", err),
+    }
+    drop(stream);
 }

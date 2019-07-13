@@ -1,8 +1,9 @@
 use clap::{App, Arg};
 use failure::Error;
+use kvs::{Action, Command, Message};
 use std::env;
-use std::process;
 use std::net::TcpStream;
+use std::process;
 
 fn main() -> Result<(), Error> {
     let matches = App::new(env::var("CARGO_PKG_NAME").unwrap())
@@ -27,28 +28,59 @@ fn main() -> Result<(), Error> {
         )
         .get_matches();
 
-
     let addr = matches.value_of("addr").unwrap_or("127.0.0.1:4000");
-    if let Ok(_stream) = TcpStream::connect(addr) {
-        println!("Connected to the server!");
-    } else {
-        println!("Couldn't connect to server...");
-    }
+    let mut stream = TcpStream::connect(addr)?;
 
     if let Some(action) = matches.value_of("action") {
         if let Some(key) = matches.value_of("key") {
             match action {
                 "get" => {
-                    if let Some(_) = matches.value_of("value") {
+                    if matches.value_of("value").is_some() {
                         eprintln!("too many arguments");
                         process::exit(2);
                     } else {
                         println!("get {}", key);
+                        let cmd = Command {
+                            action: Action::Get,
+                            key: key.to_owned(),
+                            value: "".to_string(),
+                        };
+                        let msg = Message::Command(cmd);
+                        kvs::write_message(&mut stream, &msg)?;
+                        match kvs::read_message(&mut stream)? {
+                            Message::String(value) => println!("value = {}", value),
+                            Message::Error(err) => {
+                                eprintln!("kvs error {}", err);
+                                process::exit(2);
+                            }
+                            _ => {
+                                eprintln!("invalid reply");
+                                process::exit(2);
+                            }
+                        }
                     }
                 }
                 "set" => {
                     if let Some(value) = matches.value_of("value") {
                         println!("set {} {}", key, value);
+                        let cmd = Command {
+                            action: Action::Set,
+                            key: key.to_owned(),
+                            value: value.to_owned(),
+                        };
+                        let msg = Message::Command(cmd);
+                        kvs::write_message(&mut stream, &msg)?;
+                        match kvs::read_message(&mut stream)? {
+                            Message::String(value) => println!("value = {}", value),
+                            Message::Error(err) => {
+                                eprintln!("kvs error {}", err);
+                                process::exit(2);
+                            }
+                            _ => {
+                                eprintln!("invalid reply");
+                                process::exit(2);
+                            }
+                        }
                     } else {
                         eprintln!("you must specify a value");
                         process::exit(2);
@@ -56,6 +88,24 @@ fn main() -> Result<(), Error> {
                 }
                 "rm" => {
                     println!("rm {}", key);
+                        let cmd = Command {
+                            action: Action::Remove,
+                            key: key.to_owned(),
+                            value: "".to_owned(),
+                        };
+                        let msg = Message::Command(cmd);
+                        kvs::write_message(&mut stream, &msg)?;
+                        match kvs::read_message(&mut stream)? {
+                            Message::String(value) => println!("value = {}", value),
+                            Message::Error(err) => {
+                                eprintln!("kvs error {}", err);
+                                process::exit(2);
+                            }
+                            _ => {
+                                eprintln!("invalid reply");
+                                process::exit(2);
+                            }
+                        }
                 }
                 _ => {
                     eprintln!("unknown action: '{}'", action);
@@ -70,8 +120,6 @@ fn main() -> Result<(), Error> {
         eprintln!("you must specify an action");
         process::exit(2);
     }
-
-    
 
     Ok(())
 }

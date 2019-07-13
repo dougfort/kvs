@@ -13,6 +13,10 @@ use std::io::{BufReader, Seek, Write};
 use std::path::Path;
 use std::result;
 
+pub const COMMAND_MESSAGE: u32 = 1;
+pub const ERROR_MESSAGE: u32 = 2;
+pub const STRING_MESSAGE: u32 = 3;
+
 /// alias for Result<>
 pub type Result<T> = result::Result<T, Error>;
 
@@ -29,17 +33,24 @@ pub trait KvsEngine {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-enum Action {
+pub enum Action {
     None,
+    Get,
     Set,
     Remove,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Command {
-    action: Action,
-    key: String,
-    value: String,
+pub struct Command {
+    pub action: Action,
+    pub key: String,
+    pub value: String,
+}
+
+pub enum Message {
+    Command(Command),
+    Error(String),
+    String(String),
 }
 
 impl KvStore {
@@ -166,5 +177,41 @@ impl KvStore {
         self.file.write_all(s.to_string().as_bytes())?;
         self.file.write_all("\n".as_bytes())?;
         Ok(offset)
+    }
+}
+
+pub fn write_message(writer: &mut std::io::Write, message: &Message) -> Result<()> {
+    let (message_type, content) = match message {
+        Message::Command(cmd) => (COMMAND_MESSAGE, serde_json::to_string(cmd)?),
+        Message::Error(err) => (ERROR_MESSAGE, err.to_string()),
+        Message::String(str) => (STRING_MESSAGE, str.to_string()),
+    };
+    writer.write_all(&message_type.to_be_bytes())?;
+    let size = content.len() as u32;
+    writer.write_all(&size.to_be_bytes())?;
+    writer.write_all(content.as_bytes())?;
+    Ok(())
+}
+
+pub fn read_message(reader: &mut std::io::Read) -> Result<Message> {
+    let mut buffer = [0; std::mem::size_of::<u32>()];
+    reader.read_exact(&mut buffer)?;
+    let message_type = u32::from_be_bytes(buffer);
+    reader.read_exact(&mut buffer)?;
+    let message_size = u32::from_be_bytes(buffer);
+    let mut content_buffer = String::new();
+    let content_size = reader.read_to_string(&mut content_buffer)? as u32;
+    if content_size != message_size {
+        return Err(format_err!(
+            "expected {} bytes got {}",
+            message_size,
+            content_size
+        ));
+    }
+    match message_type {
+        COMMAND_MESSAGE => Ok(Message::Command(serde_json::from_str(&content_buffer)?)),
+        ERROR_MESSAGE => Ok(Message::Error(content_buffer)),
+        STRING_MESSAGE => Ok(Message::String(content_buffer)),
+        _ => Err(format_err!("invalid message type {}", message_type)),
     }
 }
