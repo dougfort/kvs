@@ -80,7 +80,17 @@ impl KvStore {
 
         Ok(store)
     }
+    
+    fn append_command(&mut self, cmd: &Command) -> Result<u64> {
+        let s = serde_json::to_string(cmd)?;
+        let offset = self.file.seek(SeekFrom::End(0))?;
+        self.file.write_all(s.to_string().as_bytes())?;
+        self.file.write_all("\n".as_bytes())?;
+        Ok(offset)
+    }
+}
 
+impl KvsEngine for KvStore {
     /// retrieve a value from the store
     ///
     /// # Examples
@@ -97,7 +107,7 @@ impl KvStore {
     /// store.set(key.to_owned(), value.to_owned());
     /// assert_eq!(Some(value.to_owned()), store.get(key.to_owned()));
     /// ```
-    pub fn get(&mut self, key: String) -> Result<Option<String>> {
+    fn get(&mut self, key: String) -> Result<Option<String>> {
         match self.file_pointer_map.get(&key) {
             Some(file_pointer) => {
                 self.file.seek(SeekFrom::Start(*file_pointer))?;
@@ -130,7 +140,7 @@ impl KvStore {
     /// store.set(key.to_owned(), value.to_owned());
     /// assert_eq!(Some(value.to_owned()), store.get(key.to_owned()));
     /// ```
-    pub fn set(&mut self, key: String, value: String) -> Result<()> {
+    fn set(&mut self, key: String, value: String) -> Result<()> {
         let cmd = Command {
             action: Action::Set,
             key,
@@ -156,7 +166,7 @@ impl KvStore {
     /// store.remove(key.to_owned());
     /// assert_eq!(None, store.get(key.to_owned()));
     /// ```
-    pub fn remove(&mut self, key: String) -> Result<Option<()>> {
+    fn remove(&mut self, key: String) -> Result<Option<()>> {
         let get_result = self.get(key.to_owned())?;
         if get_result.is_none() {
             return Err(format_err!("Key not found"));
@@ -169,14 +179,6 @@ impl KvStore {
         let offset = self.append_command(&cmd)?;
         self.file_pointer_map.insert(cmd.key, offset);
         Ok(Some(()))
-    }
-
-    fn append_command(&mut self, cmd: &Command) -> Result<u64> {
-        let s = serde_json::to_string(cmd)?;
-        let offset = self.file.seek(SeekFrom::End(0))?;
-        self.file.write_all(s.to_string().as_bytes())?;
-        self.file.write_all("\n".as_bytes())?;
-        Ok(offset)
     }
 }
 

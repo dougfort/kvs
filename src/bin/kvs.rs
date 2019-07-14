@@ -1,6 +1,6 @@
 use clap::{App, Arg};
 use failure::Error;
-use kvs::KvStore;
+use kvs::{KvStore, KvsEngine};
 use std::env;
 use std::process;
 
@@ -23,7 +23,7 @@ fn main() -> Result<(), Error> {
         .get_matches();
 
     let cwd = env::current_dir()?;
-    let mut store = KvStore::open(&cwd)?;
+    let store: &mut KvsEngine = &mut KvStore::open(&cwd)?;
 
     if let Some(action) = matches.value_of("action") {
         if let Some(key) = matches.value_of("key") {
