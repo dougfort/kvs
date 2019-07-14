@@ -1,6 +1,7 @@
 use clap::{App, Arg};
 use failure::Error;
 use kvs::{read_message, write_message, Action, Message};
+use kvs::{KvStore, KvsEngine};
 use slog::{debug, error, info, o, Drain, Logger};
 use slog_async::Async;
 use std::env;
@@ -37,26 +38,41 @@ fn main() -> Result<(), Error> {
     let engine = matches.value_of("engine").unwrap_or_default();
     info!(root_logger, "addr = {}; engine = {}", addr, engine);
 
+    let cwd = env::current_dir()?;
+    let store: &mut KvsEngine = &mut KvStore::open(&cwd)?;
+
     let listener = TcpListener::bind(addr)?;
     // accept connections and process them serially
     for stream in listener.incoming() {
         let stream = stream?;
         let peer_addr = stream.peer_addr()?;
         debug!(root_logger, "connection"; "addr" => peer_addr);
-        handle_client(stream, root_logger.clone());
+        handle_client(stream, root_logger.clone(), store);
     }
 
     Ok(())
 }
 
-fn handle_client(mut stream: TcpStream, logger: Logger) {
+fn handle_client(mut stream: TcpStream, logger: Logger, store: &mut KvsEngine) {
     match read_message(&mut stream) {
         Ok(msg) => {
             let reply_message = if let Message::Command(cmd) = msg {
                 match cmd.action {
-                    Action::Get => Message::Error("not implemented".to_string()),
-                    Action::Set => Message::Error("not implemented".to_string()),
-                    Action::Remove => Message::Error("not implemented".to_string()),
+                    Action::Get => match store.get(cmd.key) {
+                        Ok(result) => match result {
+                            None => Message::Error("Key not found".to_owned()),
+                            Some(value) => Message::String(value),
+                        },
+                        Err(err) => Message::Error(format!("{}", err)),
+                    },
+                    Action::Set => match store.set(cmd.key, cmd.value) {
+                        Ok(_) => Message::String("ok".to_owned()),
+                        Err(err) => Message::Error(format!("{}", err)),
+                    },
+                    Action::Remove => match store.remove(cmd.key) {
+                        Ok(_) => Message::String("ok".to_owned()),
+                        Err(err) => Message::Error(format!("{}", err)),
+                    },
                     _ => Message::Error("invalid Action".to_string()),
                 }
             } else {

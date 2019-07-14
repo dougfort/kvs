@@ -88,24 +88,24 @@ fn main() -> Result<(), Error> {
                 }
                 "rm" => {
                     println!("rm {}", key);
-                        let cmd = Command {
-                            action: Action::Remove,
-                            key: key.to_owned(),
-                            value: "".to_owned(),
-                        };
-                        let msg = Message::Command(cmd);
-                        kvs::write_message(&mut stream, &msg)?;
-                        match kvs::read_message(&mut stream)? {
-                            Message::String(value) => println!("value = {}", value),
-                            Message::Error(err) => {
-                                eprintln!("kvs error {}", err);
-                                process::exit(2);
-                            }
-                            _ => {
-                                eprintln!("invalid reply");
-                                process::exit(2);
-                            }
+                    let cmd = Command {
+                        action: Action::Remove,
+                        key: key.to_owned(),
+                        value: "".to_owned(),
+                    };
+                    let msg = Message::Command(cmd);
+                    kvs::write_message(&mut stream, &msg)?;
+                    match kvs::read_message(&mut stream)? {
+                        Message::String(value) => println!("value = {}", value),
+                        Message::Error(err) => {
+                            eprintln!("kvs error {}", err);
+                            process::exit(2);
                         }
+                        _ => {
+                            eprintln!("invalid reply");
+                            process::exit(2);
+                        }
+                    }
                 }
                 _ => {
                     eprintln!("unknown action: '{}'", action);

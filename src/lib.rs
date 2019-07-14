@@ -80,7 +80,7 @@ impl KvStore {
 
         Ok(store)
     }
-    
+
     fn append_command(&mut self, cmd: &Command) -> Result<u64> {
         let s = serde_json::to_string(cmd)?;
         let offset = self.file.seek(SeekFrom::End(0))?;
