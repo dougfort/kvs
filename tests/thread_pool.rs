@@ -37,7 +37,7 @@ fn spawn_panic_task<P: ThreadPool>() -> Result<()> {
         pool.spawn(move || {
             // It suppresses flood of panic messages to the console.
             // You may find it useful to comment this out during development.
-            panic_control::disable_hook_in_current_thread();
+            // panic_control::disable_hook_in_current_thread();
 
             panic!();
         })

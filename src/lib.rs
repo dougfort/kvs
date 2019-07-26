@@ -17,6 +17,8 @@ pub const COMMAND_MESSAGE: u32 = 1;
 pub const ERROR_MESSAGE: u32 = 2;
 pub const STRING_MESSAGE: u32 = 3;
 
+pub mod thread_pool;
+
 /// alias for Result<>
 pub type Result<T> = result::Result<T, Error>;
 
@@ -27,9 +29,9 @@ pub struct KvStore {
 }
 
 pub trait KvsEngine {
-    fn set(&mut self, key: String, value: String) -> Result<()>;
-    fn get(&mut self, key: String) -> Result<Option<String>>;
-    fn remove(&mut self, key: String) -> Result<Option<()>>;
+    fn set(&self, key: String, value: String) -> Result<()>;
+    fn get(&self, key: String) -> Result<Option<String>>;
+    fn remove(&self, key: String) -> Result<Option<()>>;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -81,6 +83,18 @@ impl KvStore {
         Ok(store)
     }
 
+    pub fn clone(&self) -> KvStore {
+        let file_path = "";
+        KvStore{
+            file: OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(file_path).unwrap(),
+            file_pointer_map: HashMap::new(),
+        }
+    }
+
     fn append_command(&mut self, cmd: &Command) -> Result<u64> {
         let s = serde_json::to_string(cmd)?;
         let offset = self.file.seek(SeekFrom::End(0))?;
@@ -107,21 +121,8 @@ impl KvsEngine for KvStore {
     /// store.set(key.to_owned(), value.to_owned());
     /// assert_eq!(Some(value.to_owned()), store.get(key.to_owned()));
     /// ```
-    fn get(&mut self, key: String) -> Result<Option<String>> {
-        match self.file_pointer_map.get(&key) {
-            Some(file_pointer) => {
-                self.file.seek(SeekFrom::Start(*file_pointer))?;
-                let mut reader = BufReader::new(&self.file);
-                let mut line = String::new();
-                reader.read_line(&mut line)?;
-                let cmd: Command = serde_json::from_str(&line)?;
-                match cmd.action {
-                    Action::Set => Ok(Some(cmd.value)),
-                    _ => Ok(None),
-                }
-            }
-            None => Ok(None),
-        }
+    fn get(&self, key: String) -> Result<Option<String>> {
+        Err(format_err!("not implemented"))
     }
 
     /// store a value in the store
@@ -140,16 +141,8 @@ impl KvsEngine for KvStore {
     /// store.set(key.to_owned(), value.to_owned());
     /// assert_eq!(Some(value.to_owned()), store.get(key.to_owned()));
     /// ```
-    fn set(&mut self, key: String, value: String) -> Result<()> {
-        let cmd = Command {
-            action: Action::Set,
-            key,
-            value,
-        };
-        let offset = self.append_command(&cmd)?;
-        self.file_pointer_map.insert(cmd.key, offset);
-
-        Ok(())
+    fn set(&self, key: String, value: String) -> Result<()> {
+        Err(format_err!("not implemented"))
     }
 
     /// remove a value from the store
@@ -166,19 +159,8 @@ impl KvsEngine for KvStore {
     /// store.remove(key.to_owned());
     /// assert_eq!(None, store.get(key.to_owned()));
     /// ```
-    fn remove(&mut self, key: String) -> Result<Option<()>> {
-        let get_result = self.get(key.to_owned())?;
-        if get_result.is_none() {
-            return Err(format_err!("Key not found"));
-        };
-        let cmd = Command {
-            action: Action::Remove,
-            key,
-            value: String::new(),
-        };
-        let offset = self.append_command(&cmd)?;
-        self.file_pointer_map.insert(cmd.key, offset);
-        Ok(Some(()))
+    fn remove(&self, key: String) -> Result<Option<()>> {
+        Err(format_err!("not implemented"))
     }
 }
 
