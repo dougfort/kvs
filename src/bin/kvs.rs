@@ -23,7 +23,7 @@ fn main() -> Result<(), Error> {
         .get_matches();
 
     let cwd = env::current_dir()?;
-    let store: &mut KvsEngine = &mut KvStore::open(&cwd)?;
+    let store = KvStore::open(&cwd)?;
 
     if let Some(action) = matches.value_of("action") {
         if let Some(key) = matches.value_of("key") {

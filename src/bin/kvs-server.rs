@@ -39,7 +39,7 @@ fn main() -> Result<(), Error> {
     info!(root_logger, "addr = {}; engine = {}", addr, engine);
 
     let cwd = env::current_dir()?;
-    let store: &mut KvsEngine = &mut KvStore::open(&cwd)?;
+    let store = KvStore::open(&cwd)?;
 
     let listener = TcpListener::bind(addr)?;
     // accept connections and process them serially
@@ -47,13 +47,13 @@ fn main() -> Result<(), Error> {
         let stream = stream?;
         let peer_addr = stream.peer_addr()?;
         debug!(root_logger, "connection"; "addr" => peer_addr);
-        handle_client(stream, root_logger.clone(), store);
+        handle_client(stream, root_logger.clone(), store.clone());
     }
 
     Ok(())
 }
 
-fn handle_client(mut stream: TcpStream, logger: Logger, store: &mut KvsEngine) {
+fn handle_client(mut stream: TcpStream, logger: Logger, store: impl KvsEngine) {
     match read_message(&mut stream) {
         Ok(msg) => {
             let reply_message = if let Message::Command(cmd) = msg {
