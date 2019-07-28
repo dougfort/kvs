@@ -13,15 +13,15 @@ pub const COMMAND_MESSAGE: u32 = 1;
 pub const ERROR_MESSAGE: u32 = 2;
 pub const STRING_MESSAGE: u32 = 3;
 
-pub mod thread_pool;
 pub mod state;
+pub mod thread_pool;
 
 /// alias for Result<>
 pub type Result<T> = result::Result<T, Error>;
 
 /// Key-Value Store
 pub struct KvStore {
-    state: Arc<Mutex<Box<state::State>>>
+    state: Arc<Mutex<Box<state::State>>>,
 }
 
 pub trait KvsEngine: Clone + Send + 'static {
@@ -107,7 +107,7 @@ pub fn write_message(writer: &mut std::io::Write, message: &Message) -> Result<(
 }
 
 pub fn read_message(reader: &mut std::io::Read) -> Result<Message> {
-    let mut buffer = [0; std::mem::size_of::<u32>()];
+    let mut buffer: [u8; std::mem::size_of::<u32>()] = [0; std::mem::size_of::<u32>()];
     reader.read_exact(&mut buffer)?;
     let message_type = u32::from_be_bytes(buffer);
     reader.read_exact(&mut buffer)?;

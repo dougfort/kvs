@@ -1,5 +1,6 @@
 use clap::{App, Arg};
 use failure::Error;
+use kvs::thread_pool::{NaiveThreadPool, ThreadPool};
 use kvs::{read_message, write_message, Action, Message};
 use kvs::{KvStore, KvsEngine};
 use slog::{debug, error, info, o, Drain, Logger};
@@ -38,23 +39,33 @@ fn main() -> Result<(), Error> {
     let engine = matches.value_of("engine").unwrap_or_default();
     info!(root_logger, "addr = {}; engine = {}", addr, engine);
 
+    const THREAD_COUNT: u32 = 42;
+
     let cwd = env::current_dir()?;
     let store = KvStore::open(&cwd)?;
+    let pool = NaiveThreadPool::new(THREAD_COUNT)?;
 
     let listener = TcpListener::bind(addr)?;
     // accept connections and process them serially
     for stream in listener.incoming() {
         let stream = stream?;
         let peer_addr = stream.peer_addr()?;
+        let logger = root_logger.clone();
+        let store = store.clone();
         debug!(root_logger, "connection"; "addr" => peer_addr);
-        handle_client(stream, root_logger.clone(), store.clone());
+        //        pool.spawn(move || {
+        handle_client(stream, logger, store);
+        //        });
     }
 
     Ok(())
 }
 
 fn handle_client(mut stream: TcpStream, logger: Logger, store: impl KvsEngine) {
-    match read_message(&mut stream) {
+    debug!(logger, "reading");
+    let incoming = read_message(&mut stream);
+    debug!(logger, "read incoming");
+    match incoming {
         Ok(msg) => {
             let reply_message = if let Message::Command(cmd) = msg {
                 match cmd.action {
@@ -78,6 +89,7 @@ fn handle_client(mut stream: TcpStream, logger: Logger, store: impl KvsEngine) {
             } else {
                 Message::Error("Invalid message".to_string())
             };
+            info!(logger, "writing");
             write_message(&mut stream, &reply_message).expect("write_message failed");
         }
         Err(err) => error!(logger, "read_message: {}", err),

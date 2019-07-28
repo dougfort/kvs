@@ -1,12 +1,12 @@
-use crate::{Result, Command, Action};
+use crate::{Action, Command, Result};
 
+use failure::format_err;
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::io::{BufReader, Seek, Write};
 use std::path::Path;
-use std::collections::HashMap;
-use failure::{format_err};
 
 /// Mutable State
 pub struct State {
