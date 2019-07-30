@@ -8,10 +8,13 @@ use serde_derive::{Deserialize, Serialize};
 use std::path::Path;
 use std::result;
 use std::sync::{Arc, Mutex};
+use std::convert::TryInto;
+use std::str;
 
 pub const COMMAND_MESSAGE: u32 = 1;
 pub const ERROR_MESSAGE: u32 = 2;
 pub const STRING_MESSAGE: u32 = 3;
+pub const BUFFER_SIZE: usize = 1024;
 
 pub mod state;
 pub mod thread_pool;
@@ -101,30 +104,28 @@ pub fn write_message(writer: &mut std::io::Write, message: &Message) -> Result<(
     };
     writer.write_all(&message_type.to_be_bytes())?;
     let size = content.len() as u32;
+    if size > BUFFER_SIZE as u32 {
+        return Err(format_err!("message too large"))
+    }
     writer.write_all(&size.to_be_bytes())?;
     writer.write_all(content.as_bytes())?;
+    writer.flush()?;
     Ok(())
 }
 
 pub fn read_message(reader: &mut std::io::Read) -> Result<Message> {
-    let mut buffer: [u8; std::mem::size_of::<u32>()] = [0; std::mem::size_of::<u32>()];
-    reader.read_exact(&mut buffer)?;
-    let message_type = u32::from_be_bytes(buffer);
-    reader.read_exact(&mut buffer)?;
-    let message_size = u32::from_be_bytes(buffer);
-    let mut content_buffer = String::new();
-    let content_size = reader.read_to_string(&mut content_buffer)? as u32;
-    if content_size != message_size {
-        return Err(format_err!(
-            "expected {} bytes got {}",
-            message_size,
-            content_size
-        ));
-    }
+    let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+    reader.read_exact(&mut buffer[0..std::mem::size_of::<u32>()])?;
+    let (int_bytes, _) = buffer.split_at(std::mem::size_of::<u32>());
+    let message_type = u32::from_be_bytes(int_bytes.try_into()?);
+    reader.read_exact(&mut buffer[0..std::mem::size_of::<u32>()])?;
+    let (int_bytes, _) = buffer.split_at(std::mem::size_of::<u32>());
+    let message_size = u32::from_be_bytes(int_bytes.try_into()?);
+    reader.read_exact(&mut buffer[0..message_size as usize])?;
     match message_type {
-        COMMAND_MESSAGE => Ok(Message::Command(serde_json::from_str(&content_buffer)?)),
-        ERROR_MESSAGE => Ok(Message::Error(content_buffer)),
-        STRING_MESSAGE => Ok(Message::String(content_buffer)),
+        COMMAND_MESSAGE => Ok(Message::Command(serde_json::from_slice(&buffer[0..message_size as usize])?)),
+        ERROR_MESSAGE => Ok(Message::Error(String::from_utf8(buffer[0..message_size as usize].to_vec())?)),
+        STRING_MESSAGE => Ok(Message::String(String::from_utf8(buffer[0..message_size as usize].to_vec())?)),
         _ => Err(format_err!("invalid message type {}", message_type)),
     }
 }

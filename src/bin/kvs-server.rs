@@ -53,19 +53,16 @@ fn main() -> Result<(), Error> {
         let logger = root_logger.clone();
         let store = store.clone();
         debug!(root_logger, "connection"; "addr" => peer_addr);
-        //        pool.spawn(move || {
-        handle_client(stream, logger, store);
-        //        });
+        pool.spawn(move || {
+            handle_client(stream, logger, store);
+        });
     }
 
     Ok(())
 }
 
 fn handle_client(mut stream: TcpStream, logger: Logger, store: impl KvsEngine) {
-    debug!(logger, "reading");
-    let incoming = read_message(&mut stream);
-    debug!(logger, "read incoming");
-    match incoming {
+    match read_message(&mut stream) {
         Ok(msg) => {
             let reply_message = if let Message::Command(cmd) = msg {
                 match cmd.action {
@@ -89,7 +86,6 @@ fn handle_client(mut stream: TcpStream, logger: Logger, store: impl KvsEngine) {
             } else {
                 Message::Error("Invalid message".to_string())
             };
-            info!(logger, "writing");
             write_message(&mut stream, &reply_message).expect("write_message failed");
         }
         Err(err) => error!(logger, "read_message: {}", err),
