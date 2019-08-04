@@ -21,4 +21,5 @@ slog = "2.4"
 slog-async = "2.3"
 slog-json = "2.3"
 crossbeam-utils = "0.6"
+crossbeam-channel = "0.3"
 
