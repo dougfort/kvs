@@ -1,17 +1,17 @@
 use crate::{Action, Command, Result};
 
 use failure::format_err;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
-use std::io::SeekFrom;
-use std::io::{BufReader, Seek, Write};
-use std::path::Path;
+use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
 
 /// Mutable State
 pub struct State {
     file: File,
-    file_pointer_map: HashMap<String, u64>,
+    file_path: PathBuf,
+    file_pointer_map: BTreeMap<String, u64>,
 }
 
 impl State {
@@ -22,8 +22,9 @@ impl State {
                 .read(true)
                 .write(true)
                 .create(true)
-                .open(file_path)?,
-            file_pointer_map: HashMap::new(),
+                .open(&file_path)?,
+            file_path: file_path,
+            file_pointer_map: BTreeMap::new(),
         };
 
         state.file.seek(SeekFrom::Start(0))?;

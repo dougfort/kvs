@@ -1,6 +1,6 @@
 use clap::{App, Arg};
 use failure::Error;
-use kvs::thread_pool::{NaiveThreadPool, ThreadPool};
+use kvs::thread_pool::{SharedQueueThreadPool, ThreadPool};
 use kvs::{read_message, write_message, Action, Message};
 use kvs::{KvStore, KvsEngine};
 use slog::{debug, error, info, o, Drain, Logger};
@@ -43,7 +43,7 @@ fn main() -> Result<(), Error> {
 
     let cwd = env::current_dir()?;
     let store = KvStore::open(&cwd)?;
-    let pool = NaiveThreadPool::new(THREAD_COUNT)?;
+    let pool = SharedQueueThreadPool::new(THREAD_COUNT)?;
 
     let listener = TcpListener::bind(addr)?;
     // accept connections and process them serially
