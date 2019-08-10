@@ -1,55 +1,68 @@
 use crate::{Action, Command, Result};
 
 use failure::format_err;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap};
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
-use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
+use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
+use std::path::{Path};
 
 /// Mutable State
 pub struct State {
-    file: File,
-    file_path: PathBuf,
+    reader: BufReader<File>,
+    writer: BufWriter<File>,
     file_pointer_map: BTreeMap<String, u64>,
 }
 
 impl State {
     pub fn open(dir_path: &Path) -> Result<State> {
         let file_path = dir_path.join("kvs.log");
+        let reader = BufReader::new(OpenOptions::new()
+            .read(true)
+            .open(&file_path)?);
+        let writer = BufWriter::new(OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&file_path)?);
+        let file_pointer_map = BTreeMap::new();
+            
         let mut state = State {
-            file: OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .open(&file_path)?,
-            file_path: file_path,
-            file_pointer_map: BTreeMap::new(),
+            reader: reader, 
+            writer: writer,
+            file_pointer_map,
         };
 
-        state.file.seek(SeekFrom::Start(0))?;
-        let reader = BufReader::new(&state.file);
+        state.load_file_pointer_map()?;
+
+        Ok(state)
+    }
+
+    fn load_file_pointer_map(&mut self) -> Result<()> {
+        self.reader.seek(SeekFrom::Start(0))?;
         let mut offset: u64 = 0;
 
-        for line_result in reader.lines() {
-            let line = line_result?;
-            let cmd: Command = serde_json::from_str(&line)?;
-            state.file_pointer_map.insert(cmd.key, offset);
-            offset += line.len() as u64;
+        loop {
+            let mut buffer = String::new();
+            let count = self.reader.read_line(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            let cmd: Command = serde_json::from_str(&buffer)?;
+            self.file_pointer_map.insert(cmd.key, offset);
+            offset += count as u64;
             offset += 1;
         }
 
-        Ok(state)
+        Ok(())
     }
 
     /// retrieve a value from the store
     pub fn get(&mut self, key: String) -> Result<Option<String>> {
         match self.file_pointer_map.get(&key) {
             Some(file_pointer) => {
-                self.file.seek(SeekFrom::Start(*file_pointer))?;
-                let mut reader = BufReader::new(&self.file);
+                self.reader.seek(SeekFrom::Start(*file_pointer))?;
                 let mut line = String::new();
-                reader.read_line(&mut line)?;
+                self.reader.read_line(&mut line)?;
                 let cmd: Command = serde_json::from_str(&line)?;
                 match cmd.action {
                     Action::Set => Ok(Some(cmd.value)),
@@ -91,9 +104,10 @@ impl State {
 
     fn append_command(&mut self, cmd: &Command) -> Result<u64> {
         let s = serde_json::to_string(cmd)?;
-        let offset = self.file.seek(SeekFrom::End(0))?;
-        self.file.write_all(s.to_string().as_bytes())?;
-        self.file.write_all("\n".as_bytes())?;
+        let offset = self.writer.seek(SeekFrom::End(0))?;
+        self.writer.write_all(s.to_string().as_bytes())?;
+        self.writer.write_all("\n".as_bytes())?;
+        self.writer.flush()?;
         Ok(offset)
     }
 }
